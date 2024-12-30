@@ -9,6 +9,7 @@ from mpl_toolkits.mplot3d import Axes3D  # Import Axes3D for 3D plotting
 from vpython import sphere, vector, color, scene, rate, label
 import multiprocessing  # Import multiprocessing
 from skyfield.data import mpc
+import pandas as pd
 
 # Load the ephemeris data using HORIZONS
 eph = load('de441.bsp')  # Use a high-precision ephemeris from Skyfield
@@ -33,10 +34,15 @@ planets = {
 # Load comet data
 data = load.open(mpc.COMET_URL)
 comets = mpc.load_comets_dataframe(data)
-comets = comets.sort_values('magnitude_k')  # Sort by brightness
+# Convert 'magnitude_k' to numeric values, forcing errors to NaN
+comets['magnitude_k'] = pd.to_numeric(comets['magnitude_k'], errors='coerce')
+
+comets = comets.sort_values('magnitude_k', ascending=False)
+
 
 # Extract comet names and positions
-bright_comets = comets.head(10)  # Top 10 brightest comets
+bright_comets = comets.head(10) 
+
 
 
 # Function to get live positions relative to the Sun
@@ -130,14 +136,28 @@ def plot_solar_system(coordinates):
 def display_comets():
     comet_text_box.delete(1.0, tk.END)
     comet_text_box.insert(tk.END, "Top 10 Brightest Comets:\n")
-    comet_text_box.insert(tk.END, f"{'Name':<20}{'Magnitude':<10}\n")
-    comet_text_box.insert(tk.END, "-" * 30 + "\n")
     
+    # Dynamically determine the max width for the 'Name' column
+    max_name_length = max(bright_comets['designation'].apply(len))
+    
+    # Format header with dynamic width for 'Name'
+    comet_text_box.insert(tk.END, f"{'Name':^{max_name_length}}  {'Magnitude':^10}  {'Perihelion Distance (AU)':^25}  {'Perihelion Date':^20}\n")
+    comet_text_box.insert(tk.END, "-" * (max_name_length + 60) + "\n")
+    
+    # Loop through the comets to insert the data
     for _, row in bright_comets.iterrows():
         name = row['designation']
         magnitude = row['magnitude_k']
-        comet_text_box.insert(tk.END, f"{name:<20}{magnitude:<10.2f}\n")
+        perihelion_distance = row['perihelion_distance_au']  # Extract perihelion distance
+        perihelion_year = int(row['perihelion_year'])
+        perihelion_month = int(row['perihelion_month'])
+        perihelion_day = int(row['perihelion_day'])
 
+        # Format the date properly
+        perihelion_date = datetime(perihelion_year, perihelion_month, perihelion_day).strftime('%Y-%m-%d')
+
+        # Format the data into fixed-width, centered columns
+        comet_text_box.insert(tk.END, f"{name:^{max_name_length}}  {magnitude:^10.2f}  {perihelion_distance:^25.2f}  {perihelion_date:^20}\n")
 
 # Function to create 3D solar system simulation using VPython
 # Function to create 3D solar system simulation using VPython
@@ -254,14 +274,14 @@ def start_vpython_simulation():
 # Set up Tkinter GUI
 root = tk.Tk()
 root.title("Solar System Visualization")
-root.geometry('600x700')
+root.geometry('1000x700')
 
 # Text box for live positions
-text_box = tk.Text(root, height=20, width=80)
+text_box = tk.Text(root, height=15, width=75)
 text_box.pack()
 
 # Comet text box
-comet_text_box = tk.Text(root, height=10, width=80)
+comet_text_box = tk.Text(root, height=15, width=90)
 comet_text_box.pack()
 
 # Button to display comets
